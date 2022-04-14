@@ -5,13 +5,21 @@ from datetime import datetime
 import matplotlib.dates as mdates
 import pandas as pd
 import time
+from tqdm import tqdm, trange
+
+
 
 class SlowControls(object):
-    def __init__(self,datasets,labels=None,indices=None):
+    def __init__(self, datasets, system = None, labels = None, indices = None):
         """
         Imports a set of slow controls data files
         produced by LabVIEW and initializes a pandas
         dataframe with labelled columns.
+
+        The labels and indices are tied intimately to the output 
+        data file of the labview program. this also allows for the
+        use of this same class for multiple different systems (LS, SS, purifier).
+        If no labels or indices are passed, it will use some known values from the LS. 
         """
         start = time.time()
         if labels==None:
@@ -26,10 +34,12 @@ class SlowControls(object):
             elif system=='Purifier':
                 self.__LabVIEW_labels = ['date','set_temp','heater_on','T_Al_middle','T_Al_top','T_Al_bottom','T_upper','T_top_flange','T_lower','T_bottom_flange']
                 self.__LabVIEW_indices = np.array([0,1,2,3,4,5,6,7,8,9])
+
         else:
-            system = None
             self.__LabVIEW_labels = labels
             self.__LabVIEW_indices = indices
+
+        self.system = system #label of the system, like "SS", "LS", "Purifier" (and typically file prefix of datafiles)
         datasets, = self.__FormatArgs((datasets,))
         self.__num_datasets = len(datasets)
         points = []
@@ -43,17 +53,28 @@ class SlowControls(object):
                     cols = len(line)
                     if cols!=old_cols:
                         print('File '+datasets[i]+' has {} columns'.format(cols))
+
+                looper = tqdm(reader, desc="Processing lines...")
+                for line in looper:
                     points.append(pd.DataFrame([np.array(line)[self.__LabVIEW_indices].astype(float)],
-                                               columns=self.__LabVIEW_labels,index=[str(i+1)]))
+                                           columns=self.__LabVIEW_labels,index=[str(i+1)]))
+
+        
+
+
         self.__data = pd.concat(points)
         self.__data['date'] = self.__data['date']-2082844800
-        if system!='Purifier':
-            self.__data['P_CCG'] = self.__data['P_CCG']*1e-6
+        if('P_CCG' in self.__data):
+            self.__data['P_CCG'] = self.__data['P_CCG']*1e-6 #i don't like this, can we change somehow? 
+
         min_date = min(self.__data['date'])
         max_date = max(self.__data['date'])
         print('\nFound {} readings between {} and {}.'.format(len(self.__data),\
                                                            datetime.fromtimestamp(min_date).strftime('%m/%d/%Y %H:%M:%S'),\
                                                            datetime.fromtimestamp(max_date).strftime('%m/%d/%Y %H:%M:%S')))
+
+        print("Sorting by date")
+        self.__data = self.__data.sort_values("date")
         print('\nCreated pandas dataframe containing slow controls data.')
         print('\nTime: {:.3f} seconds.\n'.format(time.time()-start))
         
@@ -92,11 +113,20 @@ class SlowControls(object):
             hours_array.append(secs_from_start/3600.)
         return hours_array,ranges
 
+    #returns labels and indices
+    def GetLabels(self):
+        return self.__LabVIEW_labels, self.__LabVIEW_indices
+
+
     def PlotVsDate(self,quantity,start_date,end_date,labels=[],title='',ylabel='',semilogy=False):
         """
         Method for plotting a given quantity or set of quantities
         over a specified date range.
         """
+        if(quantity == []):
+            fig, ax = plt.subplots()
+            return fig, ax 
+            
         quantity, = self.__FormatArgs((quantity,))
         if labels==[] and type(start_date)==list:
             labels = list(range(1,len(start_date)+1))
@@ -209,9 +239,24 @@ class SlowControls(object):
         Prints the pandas DataFrame head.
         """
         print(self.__data.head())
-        
-    def SaveDataframe(self):
-        """
-        Pickles the dataframe.
-        """
-        return
+
+    def PrintTimeBounds(self):
+        dates = self.__data['date']
+        print("From ",end='')
+        print(datetime.fromtimestamp(dates.min()), end='')
+        print(" to ", end='')
+        print(datetime.fromtimestamp(dates.max()))
+
+    def GetTimeBounds(self):
+        dates = self.__data['date']
+        return datetime.fromtimestamp(dates[0]), datetime.fromtimestamp(dates[-1])
+
+    #gets the most recent values for each process variable (quantity)
+    def GetMostRecentValues(self):
+        label_val_tuples = [] #[[label, val], [label, val], ...]
+        for l in self.__LabVIEW_labels:
+            label_val_tuples.append([l, self.__data[l][-1]])
+
+        return label_val_tuples
+
+
