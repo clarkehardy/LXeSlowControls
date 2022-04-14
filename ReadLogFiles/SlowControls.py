@@ -7,8 +7,6 @@ import pandas as pd
 import time
 from tqdm import tqdm, trange
 
-plt.style.use('~/evanstyle.mplstyle')
-plt.rcParams["figure.figsize"] = (10,7)
 
 
 class SlowControls(object):
@@ -24,22 +22,39 @@ class SlowControls(object):
         If no labels or indices are passed, it will use some known values from the LS. 
         """
         start = time.time()
-        self.system = system #label of the system, like "SS", "LS", "Purifier" (and typically file prefix of datafiles)
-        if(labels is None):
-            self.__LabVIEW_labels = ['date','T_Cu_bottom','T_cell_top','T_cell_mid','T_cell_bot','T_Cu_top','T_ambient','T_in','T_top_flange','T_set_min','T_set_max','mass_flow','P_XP3','P_XP5','P_CCG','cool_on', "water_flow", 'discharge_pressure', 'suction_pressure', 'coil_in_temp', 'coil1_out_temp', 'water_temp', 'fridge_CT', 'coil2_out_temp']
-            self.__LabVIEW_indices = np.array([0,1,2,3,4,5,6,7,8,10,11,21,22,23,24,35, 38, 39, 40, 41, 42, 43, 44, 45])
+        if labels==None:
+            first_name = datasets[0].split('/')[1]
+            system = first_name[0:-20]
+            if system=='SS':
+                self.__LabVIEW_labels = ['date','T_in','T_out','T_Cu_top','T_Cu_bottom','T_cell_mid','P_XP3','P_XP5','P_CCG','cool_on']
+                self.__LabVIEW_indices = np.array([0,8,7,5,1,3,22,23,24,35])
+            elif system=='LS':
+                self.__LabVIEW_labels = ['date','T_Cu_bottom','T_cell_top','T_cell_mid','T_cell_bottom','T_Cu_top','T_ambient','T_in','T_top_flange','T_set_min','T_set_max','mass_flow','P_XP3','P_XP5','P_CCG','cool_on','water_flow','discharge_pressure','suction_pressure','coil_in_temp','coil_out_temp','water_temp','fridge_CT','coil2_out_temp']
+                self.__LabVIEW_indices = np.array([0,1,2,3,4,5,6,7,8,10,11,21,22,23,24,35,38,39,40,41,42,43,44,45])
+            elif system=='Purifier':
+                self.__LabVIEW_labels = ['date','set_temp','heater_on','T_Al_middle','T_Al_top','T_Al_bottom','T_upper','T_top_flange','T_lower','T_bottom_flange']
+                self.__LabVIEW_indices = np.array([0,1,2,3,4,5,6,7,8,9])
+
         else:
             self.__LabVIEW_labels = labels
             self.__LabVIEW_indices = indices
+
+        self.system = system #label of the system, like "SS", "LS", "Purifier" (and typically file prefix of datafiles)
         datasets, = self.__FormatArgs((datasets,))
         self.__num_datasets = len(datasets)
         points = []
+        cols = 0
         for i in range(self.__num_datasets):
             print('\nOpening dataset in {}...'.format(datasets[i]))
             with open(datasets[i],'r') as infile:
                 reader = csv.reader(infile,delimiter='\t')
-                looper = tqdm(reader, desc="Processing lines...")#, total=len(infile.readlines()))
-                count = 0 #hacking for debuggin small files
+                for line in reader:
+                    old_cols = cols
+                    cols = len(line)
+                    if cols!=old_cols:
+                        print('File '+datasets[i]+' has {} columns'.format(cols))
+
+                looper = tqdm(reader, desc="Processing lines...")
                 for line in looper:
                     points.append(pd.DataFrame([np.array(line)[self.__LabVIEW_indices].astype(float)],
                                            columns=self.__LabVIEW_labels,index=[str(i+1)]))
@@ -113,9 +128,11 @@ class SlowControls(object):
             return fig, ax 
             
         quantity, = self.__FormatArgs((quantity,))
-        if labels==[]:
+        if labels==[] and type(start_date)==list:
             labels = list(range(1,len(start_date)+1))
             labels = list(map(str,labels))
+        else:
+            labels = ['']
         start_date,end_date,labels = self.__FormatArgs((start_date,end_date,labels))
         ranges = self.__GetDateInterval(start_date,end_date)
         if ylabel=='':
@@ -146,9 +163,11 @@ class SlowControls(object):
         behavior directly among different circumstances.
         """
         quantity, = self.__FormatArgs((quantity,))
-        if labels==[]:
+        if labels==[] and type(start_date)==list:
             labels = list(range(1,len(start_date)+1))
             labels = list(map(str,labels))
+        else:
+            labels = ['']
         start_date,end_date,labels = self.__FormatArgs((start_date,end_date,labels))
         hours,ranges = self.__GetHoursFromTime(start_date,end_date)
         if ylabel=='':
