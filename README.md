@@ -14,7 +14,7 @@ A few basic Python packages are required:
 
 ## Usage
 
-Start by creating a `SlowControls` object with a list of log files and column maps
+Start by creating a `SlowControls` object with a list of log files and column maps:
 
 ```python
 import yaml
@@ -31,4 +31,4 @@ SC = SlowControls(datasets,indices=colmap['indices'],labels=colmap['labels'])
 # do some plotting...
 ```
 
-An example notebook displaying more functionality will be added in the future.
+From here, many different `SlowControls` methods can be called to do basic plotting and analysis of the data from the log file. An example notebook displaying more functionality will be added in the future.
