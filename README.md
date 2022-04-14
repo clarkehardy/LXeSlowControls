@@ -9,6 +9,7 @@ A few basic Python packages are required:
 * `numpy`
 * `matplotlib`
 * `pandas`
+* `pyyaml`
 
 ## Usage
 
