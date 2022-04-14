@@ -6,11 +6,9 @@ This repository contains Python code to parse log files written by the LabVIEW S
 
 A few basic Python packages are required:
 
-* numpy
-* matplotlib
-* csv
-* pickle
-* pandas
+* `numpy`
+* `matplotlib`
+* `pandas`
 
 ## Usage
 
