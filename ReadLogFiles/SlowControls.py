@@ -62,7 +62,7 @@ class SlowControls(object):
                     cols = len(line)
                     if (i>0) & (cols!=old_cols):
                         print('Warning: file '+datasets[i]+' has {} columns, but'.format(cols))
-                        print('previous file '+datasets[i]+' had {} columns.'.format(old_cols))
+                        print('previous file '+datasets[i-1]+' had {} columns.'.format(old_cols))
                         print('These should be loaded separately with separate column maps. Aborting...')
                         abort = True
                         break
