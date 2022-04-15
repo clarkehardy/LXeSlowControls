@@ -5,12 +5,13 @@ from datetime import datetime
 import matplotlib.dates as mdates
 import pandas as pd
 import time
+import pickle
 from tqdm import tqdm, trange
 
 
 
 class SlowControls(object):
-    def __init__(self, datasets, system = None, labels = None, indices = None):
+    def __init__(self, datasets = None, system = None, labels = None, indices = None):
         """
         Imports a set of slow controls data files
         produced by LabVIEW and initializes a pandas
@@ -22,8 +23,12 @@ class SlowControls(object):
         If no labels or indices are passed, it will use some known values from the LS. 
         """
         start = time.time()
+        if datasets==None:
+            print('\nCreating an empty SlowControls object.')
+            return
+        
         if labels==None:
-            first_name = datasets[0].split('/')[1]
+            first_name = datasets[0].split('/')[-1]
             system = first_name[0:-20]
             if system=='SS':
                 self.__LabVIEW_labels = ['date','T_in','T_out','T_Cu_top','T_Cu_bottom','T_cell_mid','P_XP3','P_XP5','P_CCG','cool_on']
@@ -44,18 +49,23 @@ class SlowControls(object):
         self.__num_datasets = len(datasets)
         points = []
         cols = 0
+        abort = False
         for i in range(self.__num_datasets):
+            if abort:
+                break
             print('\nOpening dataset in {}...'.format(datasets[i]))
             with open(datasets[i],'r') as infile:
                 reader = csv.reader(infile,delimiter='\t')
-                for line in reader:
-                    old_cols = cols
-                    cols = len(line)
-                    if cols!=old_cols:
-                        print('File '+datasets[i]+' has {} columns'.format(cols))
-
                 looper = tqdm(reader, desc="Processing lines...")
                 for line in looper:
+                    old_cols = cols
+                    cols = len(line)
+                    if (i>0) & (cols!=old_cols):
+                        print('Warning: file '+datasets[i]+' has {} columns, but'.format(cols))
+                        print('previous file '+datasets[i]+' had {} columns.'.format(old_cols))
+                        print('These should be loaded separately with separate column maps. Aborting...')
+                        abort = True
+                        break
                     points.append(pd.DataFrame([np.array(line)[self.__LabVIEW_indices].astype(float)],
                                            columns=self.__LabVIEW_labels,index=[str(i+1)]))
 
@@ -73,10 +83,10 @@ class SlowControls(object):
                                                            datetime.fromtimestamp(min_date).strftime('%m/%d/%Y %H:%M:%S'),\
                                                            datetime.fromtimestamp(max_date).strftime('%m/%d/%Y %H:%M:%S')))
 
-        print("Sorting by date")
+        print("\nSorting by date...")
         self.__data = self.__data.sort_values("date")
         print('\nCreated pandas dataframe containing slow controls data.')
-        print('\nTime: {:.3f} seconds.\n'.format(time.time()-start))
+        print('\nTime: {:.3f} seconds.'.format(time.time()-start))
         
     def __GetDateInterval(self,start_date,end_date):
         """
@@ -113,10 +123,11 @@ class SlowControls(object):
             hours_array.append(secs_from_start/3600.)
         return hours_array,ranges
 
-    #returns labels and indices
     def GetLabels(self):
+        """
+        Returns labels and indices
+        """
         return self.__LabVIEW_labels, self.__LabVIEW_indices
-
 
     def PlotVsDate(self,quantity,start_date,end_date,labels=[],title='',ylabel='',semilogy=False):
         """
@@ -131,7 +142,7 @@ class SlowControls(object):
         if labels==[] and type(start_date)==list:
             labels = list(range(1,len(start_date)+1))
             labels = list(map(str,labels))
-        else:
+        elif labels==[] and type(start_date)!=list:
             labels = ['']
         start_date,end_date,labels = self.__FormatArgs((start_date,end_date,labels))
         ranges = self.__GetDateInterval(start_date,end_date)
@@ -166,7 +177,7 @@ class SlowControls(object):
         if labels==[] and type(start_date)==list:
             labels = list(range(1,len(start_date)+1))
             labels = list(map(str,labels))
-        else:
+        elif labels==[] and type(start_date)!=list:
             labels = ['']
         start_date,end_date,labels = self.__FormatArgs((start_date,end_date,labels))
         hours,ranges = self.__GetHoursFromTime(start_date,end_date)
@@ -233,6 +244,7 @@ class SlowControls(object):
         """
         for i in range(len(self.__LabVIEW_labels)):
             print('index: {}, quantity: {}'.format(self.__LabVIEW_indices[i],str(self.__LabVIEW_labels[i])))
+        print()
     
     def PrintHead(self):
         """
@@ -241,6 +253,9 @@ class SlowControls(object):
         print(self.__data.head())
 
     def PrintTimeBounds(self):
+        """
+        Prints the start and end date for the data.
+        """
         dates = self.__data['date']
         print("From ",end='')
         print(datetime.fromtimestamp(dates.min()), end='')
@@ -248,15 +263,34 @@ class SlowControls(object):
         print(datetime.fromtimestamp(dates.max()))
 
     def GetTimeBounds(self):
+        """
+        Returns the start and end date for the data.
+        """
         dates = self.__data['date']
         return datetime.fromtimestamp(dates[0]), datetime.fromtimestamp(dates[-1])
 
-    #gets the most recent values for each process variable (quantity)
     def GetMostRecentValues(self):
+        """
+        Gets the most recent values for each process variable (quantity).
+        """
         label_val_tuples = [] #[[label, val], [label, val], ...]
         for l in self.__LabVIEW_labels:
             label_val_tuples.append([l, self.__data[l][-1]])
-
         return label_val_tuples
 
-
+    def SaveDataframe(self,filename='data.pkl'):
+        """
+        Pickles the pandas dataframe so data doesn't have to be loaded again.
+        """
+        SC_tuple = (self.system,self.__LabVIEW_labels,self.__LabVIEW_indices,self.__num_datasets,self.__data)
+        pickle.dump(SC_tuple, open(filename, "wb"))
+        print('\nDataframe saved to '+filename)
+        
+    def LoadDataframe(self,filename):
+        """
+        Loads a previously pickled dataframe.
+        """
+        SC_tuple = pickle.load(open(filename, "rb"))
+        (self.system,self.__LabVIEW_labels,self.__LabVIEW_indices,self.__num_datasets,self.__data) = SC_tuple
+        print('\nDataframe loaded from '+filename)
+        
