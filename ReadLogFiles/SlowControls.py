@@ -267,7 +267,7 @@ class SlowControls(object):
         Returns the start and end date for the data.
         """
         dates = self.__data['date']
-        return datetime.fromtimestamp(dates[0]), datetime.fromtimestamp(dates[-1])
+        return datetime.fromtimestamp(dates.min()), datetime.fromtimestamp(dates.max())
 
     def GetMostRecentValues(self):
         """
@@ -293,4 +293,12 @@ class SlowControls(object):
         SC_tuple = pickle.load(open(filename, "rb"))
         (self.system,self.__LabVIEW_labels,self.__LabVIEW_indices,self.__num_datasets,self.__data) = SC_tuple
         print('\nDataframe loaded from '+filename)
+        
+    def MergeDatasets(self,second_object):
+        """
+        Merges two SlowControls objects, for instance if two were created with
+        different column maps but need to be combined.
+        """
+        self.__data = self.__data.merge(second_object.__data,how='outer')
+        print('\nMerged data from two SlowControls objects.')
         
