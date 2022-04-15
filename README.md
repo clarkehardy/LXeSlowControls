@@ -30,4 +30,4 @@ SC = SlowControls(datasets,indices=colmap['indices'],labels=colmap['labels'])
 # do some plotting...
 ```
 
-From here, many different `SlowControls` methods can be called to do basic plotting and analysis of the data from the log file. An example notebook displaying more functionality will be added in the future.
+From here, many different `SlowControls` methods can be called to do basic plotting and analysis of the data from the log file. See [this example notebook](https://github.com/clarkehardy/LXeSlowControls/blob/main/Notebooks/Example.ipynb) for more details.
