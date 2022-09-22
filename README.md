@@ -10,6 +10,7 @@ A few basic Python packages are required:
 * `matplotlib`
 * `pandas`
 * `pyyaml`
+* `tqdm`
 
 ## Usage
 
