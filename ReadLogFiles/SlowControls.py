@@ -119,7 +119,7 @@ class SlowControls(object):
         ranges = self.__GetDateInterval(start_time,end_time)
         hours_array = []
         for i in range(len(start_time)):
-            secs_from_start = np.array(self.__data['date'][ranges[i]])-self.__data['date'][ranges[i].start]
+            secs_from_start = np.array(self.__data['date'][ranges[i]])-self.__data['date'].iloc[ranges[i].start]
             hours_array.append(secs_from_start/3600.)
         return hours_array,ranges
 
