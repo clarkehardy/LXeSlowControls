@@ -271,13 +271,21 @@ class SlowControls(object):
         dates = self.__data['date']
         return datetime.fromtimestamp(dates.min()), datetime.fromtimestamp(dates.max())
 
-    def GetMostRecentValues(self):
-        """
-        Gets the most recent values for each process variable (quantity).
-        """
+    #gets the most recent values for each process variable (quantity)
+    #if the avg=N, it will do a np.mean of the last N datapoints, independent
+    #of time between the datapoints. 
+    def GetMostRecentValues(self, avg=0):
         label_val_tuples = [] #[[label, val], [label, val], ...]
         for l in self.__LabVIEW_labels:
-            label_val_tuples.append([l, self.__data[l][-1]])
+            if(avg == 0):
+                label_val_tuples.append([l, self.__data[l][-1]])
+            #python automatically handles a list with length N and if
+            #one does M with M>N, x[-M:] takes just the whole list and 
+            #doesn't throw an error. So no check is needed on if avg
+            #is larger than the data length. 
+            else:
+                label_val_tuples.append([l, np.mean(self.__data[l][-avg:])])
+
         return label_val_tuples
 
     def SaveDataframe(self,filename='data.pkl'):
