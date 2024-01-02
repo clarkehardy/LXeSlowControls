@@ -5,13 +5,14 @@ from datetime import datetime
 import matplotlib.dates as mdates
 import pandas as pd
 import time
-import pickle
 from tqdm import tqdm, trange
 
+plt.style.use('~/evanstyle.mplstyle')
+plt.rcParams["figure.figsize"] = (10,7)
 
 
 class SlowControls(object):
-    def __init__(self, datasets = None, system = None, labels = None, indices = None):
+    def __init__(self, datasets, system = None, labels = None, indices = None):
         """
         Imports a set of slow controls data files
         produced by LabVIEW and initializes a pandas
@@ -23,54 +24,25 @@ class SlowControls(object):
         If no labels or indices are passed, it will use some known values from the LS. 
         """
         start = time.time()
-        if datasets==None:
-            print('\nCreating an empty SlowControls object.')
-            return
-        
-        if labels==None:
-            first_name = datasets[0].split('/')[-1]
-            system = first_name[0:-20]
-            if system=='SS':
-                self.__LabVIEW_labels = ['date','T_in','T_out','T_Cu_top','T_Cu_bottom','T_cell_mid','P_XP3','P_XP5','P_CCG','cool_on']
-                self.__LabVIEW_indices = np.array([0,8,7,5,1,3,22,23,24,35])
-            elif system=='LS':
-                self.__LabVIEW_labels = ['date','T_Cu_bottom','T_cell_top','T_cell_mid','T_cell_bottom','T_Cu_top','T_ambient','T_in','T_top_flange','T_set_min','T_set_max','mass_flow','P_XP3','P_XP5','P_CCG','cool_on','water_flow','discharge_pressure','suction_pressure','coil_in_temp','coil_out_temp','water_temp','fridge_CT','coil2_out_temp']
-                self.__LabVIEW_indices = np.array([0,1,2,3,4,5,6,7,8,10,11,21,22,23,24,35,38,39,40,41,42,43,44,45])
-            elif system=='Purifier':
-                self.__LabVIEW_labels = ['date','set_temp','heater_on','T_Al_middle','T_Al_top','T_Al_bottom','T_upper','T_top_flange','T_lower','T_bottom_flange']
-                self.__LabVIEW_indices = np.array([0,1,2,3,4,5,6,7,8,9])
-
+        self.system = system #label of the system, like "SS", "LS", "Purifier" (and typically file prefix of datafiles)
+        if(labels is None):
+            self.__LabVIEW_labels = ['date','T_cell_top', 'T_cell_bot', 'T_in','T_out','T_Cu_top','T_Cu_bottom','T_cell_mid','P_XP3','P_XP5','P_CCG','cool_on','bottle_mass','mass_flow', "P_HP2", "Tset_low", "Tset_high"]
+            self.__LabVIEW_indices = np.array([0,2,4,28,7,5,1,3,22,23,24,35,26,21, 30, 10, 11])
         else:
             self.__LabVIEW_labels = labels
             self.__LabVIEW_indices = indices
-
-        self.system = system #label of the system, like "SS", "LS", "Purifier" (and typically file prefix of datafiles)
         datasets, = self.__FormatArgs((datasets,))
         self.__num_datasets = len(datasets)
         points = []
-        cols = 0
-        abort = False
         for i in range(self.__num_datasets):
-            if abort:
-                break
             print('\nOpening dataset in {}...'.format(datasets[i]))
             with open(datasets[i],'r') as infile:
                 reader = csv.reader(infile,delimiter='\t')
-                looper = tqdm(reader, desc="Processing lines...")
+                looper = tqdm(reader, desc="Processing lines...")#, total=len(infile.readlines()))
+                count = 0 #hacking for debuggin small files
                 for line in looper:
-                    old_cols = cols
-                    cols = len(line)
-                    if (i>0) & (cols!=old_cols):
-                        print('Warning: file '+datasets[i]+' has {} columns, but'.format(cols))
-                        print('previous file '+datasets[i-1]+' had {} columns.'.format(old_cols))
-                        print('These should be loaded separately with separate column maps. Aborting...')
-                        abort = True
-                        break
                     points.append(pd.DataFrame([np.array(line)[self.__LabVIEW_indices].astype(float)],
                                            columns=self.__LabVIEW_labels,index=[str(i+1)]))
-
-        
-
 
         self.__data = pd.concat(points)
         self.__data['date'] = self.__data['date']-2082844800
@@ -82,12 +54,13 @@ class SlowControls(object):
         print('\nFound {} readings between {} and {}.'.format(len(self.__data),\
                                                            datetime.fromtimestamp(min_date).strftime('%m/%d/%Y %H:%M:%S'),\
                                                            datetime.fromtimestamp(max_date).strftime('%m/%d/%Y %H:%M:%S')))
-
-        print("\nSorting by date...")
-        self.__data = self.__data.sort_values("date")
         print('\nCreated pandas dataframe containing slow controls data.')
-        print('\nTime: {:.3f} seconds.'.format(time.time()-start))
+        print('\nTime: {:.3f} seconds.\n'.format(time.time()-start))
         
+
+    def __del__(self):
+        print("Deleting slow controls object.\n")
+
     def __GetDateInterval(self,start_date,end_date):
         """
         Returns a slice that can be used to index for
@@ -119,15 +92,14 @@ class SlowControls(object):
         ranges = self.__GetDateInterval(start_time,end_time)
         hours_array = []
         for i in range(len(start_time)):
-            secs_from_start = np.array(self.__data['date'][ranges[i]])-self.__data['date'].iloc[ranges[i].start]
+            secs_from_start = np.array(self.__data['date'][ranges[i]])-self.__data['date'][ranges[i].start]
             hours_array.append(secs_from_start/3600.)
         return hours_array,ranges
 
+    #returns labels and indices
     def GetLabels(self):
-        """
-        Returns labels and indices
-        """
         return self.__LabVIEW_labels, self.__LabVIEW_indices
+
 
     def PlotVsDate(self,quantity,start_date,end_date,labels=[],title='',ylabel='',semilogy=False):
         """
@@ -139,11 +111,9 @@ class SlowControls(object):
             return fig, ax 
             
         quantity, = self.__FormatArgs((quantity,))
-        if labels==[] and type(start_date)==list:
+        if labels==[]:
             labels = list(range(1,len(start_date)+1))
             labels = list(map(str,labels))
-        elif labels==[] and type(start_date)!=list:
-            labels = ['']
         start_date,end_date,labels = self.__FormatArgs((start_date,end_date,labels))
         ranges = self.__GetDateInterval(start_date,end_date)
         if ylabel=='':
@@ -174,11 +144,9 @@ class SlowControls(object):
         behavior directly among different circumstances.
         """
         quantity, = self.__FormatArgs((quantity,))
-        if labels==[] and type(start_date)==list:
+        if labels==[]:
             labels = list(range(1,len(start_date)+1))
             labels = list(map(str,labels))
-        elif labels==[] and type(start_date)!=list:
-            labels = ['']
         start_date,end_date,labels = self.__FormatArgs((start_date,end_date,labels))
         hours,ranges = self.__GetHoursFromTime(start_date,end_date)
         if ylabel=='':
@@ -244,7 +212,6 @@ class SlowControls(object):
         """
         for i in range(len(self.__LabVIEW_labels)):
             print('index: {}, quantity: {}'.format(self.__LabVIEW_indices[i],str(self.__LabVIEW_labels[i])))
-        print()
     
     def PrintHead(self):
         """
@@ -253,52 +220,31 @@ class SlowControls(object):
         print(self.__data.head())
 
     def PrintTimeBounds(self):
-        """
-        Prints the start and end date for the data.
-        """
         dates = self.__data['date']
         print("From ",end='')
-        print(datetime.fromtimestamp(dates.min()), end='')
+        print(datetime.fromtimestamp(dates[0]), end='')
         print(" to ", end='')
-        print(datetime.fromtimestamp(dates.max()))
+        print(datetime.fromtimestamp(dates[-1]))
 
     def GetTimeBounds(self):
-        """
-        Returns the start and end date for the data.
-        """
         dates = self.__data['date']
-        return datetime.fromtimestamp(dates.min()), datetime.fromtimestamp(dates.max())
+        return datetime.fromtimestamp(dates[0]), datetime.fromtimestamp(dates[-1])
 
-    def GetMostRecentValues(self):
-        """
-        Gets the most recent values for each process variable (quantity).
-        """
+    #gets the most recent values for each process variable (quantity)
+    #if the avg=N, it will do a np.mean of the last N datapoints, independent
+    #of time between the datapoints. 
+    def GetMostRecentValues(self, avg=0):
         label_val_tuples = [] #[[label, val], [label, val], ...]
         for l in self.__LabVIEW_labels:
-            label_val_tuples.append([l, self.__data[l][-1]])
+            if(avg == 0):
+                label_val_tuples.append([l, self.__data[l][-1]])
+            #python automatically handles a list with length N and if
+            #one does M with M>N, x[-M:] takes just the whole list and 
+            #doesn't throw an error. So no check is needed on if avg
+            #is larger than the data length. 
+            else:
+                label_val_tuples.append([l, np.mean(self.__data[l][-avg:])])
+
         return label_val_tuples
 
-    def SaveDataframe(self,filename='data.pkl'):
-        """
-        Pickles the pandas dataframe so data doesn't have to be loaded again.
-        """
-        SC_tuple = (self.system,self.__LabVIEW_labels,self.__LabVIEW_indices,self.__num_datasets,self.__data)
-        pickle.dump(SC_tuple, open(filename, "wb"))
-        print('\nDataframe saved to '+filename)
-        
-    def LoadDataframe(self,filename):
-        """
-        Loads a previously pickled dataframe.
-        """
-        SC_tuple = pickle.load(open(filename, "rb"))
-        (self.system,self.__LabVIEW_labels,self.__LabVIEW_indices,self.__num_datasets,self.__data) = SC_tuple
-        print('\nDataframe loaded from '+filename)
-        
-    def MergeDatasets(self,second_object):
-        """
-        Merges two SlowControls objects, for instance if two were created with
-        different column maps but need to be combined.
-        """
-        self.__data = self.__data.merge(second_object.__data,how='outer')
-        print('\nMerged data from two SlowControls objects.')
-        
+
