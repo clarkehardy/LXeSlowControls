@@ -8,6 +8,8 @@ import time
 import pickle
 from tqdm import tqdm, trange
 
+plt.style.use('~/evanstyle.mplstyle')
+plt.rcParams["figure.figsize"] = (10,7)
 
 
 class SlowControls(object):
