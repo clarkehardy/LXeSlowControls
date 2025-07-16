@@ -1,0 +1,4 @@
+labels : ['date','T_Cu_bottom','T_cell_top','T_cell_mid','T_cell_bot','T_Cu_top','T_ambient','T_in','T_top_flange','T_set_min','T_set_max','mass_flow','P_XP3','P_XP5','P_CCG','cool_on', "water_flow", 'discharge_pressure', 'suction_pressure', 'coil_in_temp', 'coil1_out_temp', 'water_temp', 'fridge_CT', 'coil2_out_temp','HEX_heater_on','recirc_heater_on','recirc_pump_on']
+indices : [0,1,2,3,4,5,6,7,8,10,11,21,22,23,24,18, 38, 39, 40, 41, 42, 43, 44, 45,46,47,48]
+toplot : ['T_cell_mid','T_cell_bot','T_Cu_top','T_set_min','T_set_max','mass_flow','P_XP3','P_XP5', "water_flow", 'suction_pressure', 'water_temp']
+avg_samples: 5 #number of datapoints over which to avg during most recent values calculation
